@@ -21,9 +21,14 @@ _CHECKPOINTS_DIR = Path("data/checkpoints")
 
 def _derive_key(pipeline_id: str) -> bytes:
     """Derive a Fernet key from Gemini_API_Key + pipeline_id via PBKDF2."""
-    secret = (os.environ.get("Gemini_API_Key", "insecure-default") + pipeline_id).encode()
+    api_key = os.environ.get("Gemini_API_Key")
+    if not api_key:
+        raise EnvironmentError(
+            "Gemini_API_Key environment variable must be set — it is used to derive the checkpoint encryption key."
+        )
+    secret = (api_key + pipeline_id).encode()
     salt = hashlib.sha256(pipeline_id.encode()).digest()[:16]
-    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100_000)
+    kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=600_000)
     return base64.urlsafe_b64encode(kdf.derive(secret))
 
 
@@ -104,10 +109,11 @@ def load_pipeline_config(pipeline_id: str) -> Optional[PipelineConfig]:
 
 def save_checkpoint_state(state: CheckpointState) -> None:
     state.updated_at = datetime.utcnow()
+    encrypted = _encrypt(state.model_dump_json(), state.pipeline_id)
     with _connect(state.pipeline_id) as conn:
         conn.execute(
             "INSERT OR REPLACE INTO extraction_state (pipeline_id, state_json, updated_at) VALUES (?,?,?)",
-            (state.pipeline_id, state.model_dump_json(), state.updated_at.isoformat()),
+            (state.pipeline_id, encrypted, state.updated_at.isoformat()),
         )
 
 
@@ -120,7 +126,8 @@ def load_checkpoint_state(pipeline_id: str) -> Optional[CheckpointState]:
         ).fetchone()
     if not row:
         return None
-    return CheckpointState.model_validate_json(row["state_json"])
+    raw = _decrypt(row["state_json"], pipeline_id)
+    return CheckpointState.model_validate_json(raw)
 
 
 def upsert_window(window: ExtractionWindow) -> None:

@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from typing import Any
+
+# Allows: $ | $.field | $.a.b | $.arr[*] | $.arr[*].field  (alphanumeric + _ + -)
+_JSONPATH_RE = re.compile(r"^\$(\.[A-Za-z_$][A-Za-z0-9_$\-]*(\[\*\])?)*$")
 
 
 def jsonpath_get(data: Any, path: str) -> Any:
@@ -16,6 +20,9 @@ def jsonpath_get(data: Any, path: str) -> Any:
     """
     if path in ("$", "", None):
         return data
+
+    if not _JSONPATH_RE.match(path):
+        raise ValueError(f"Invalid JSONPath expression: {path!r}")
 
     # Strip leading "$."
     path = path.lstrip("$").lstrip(".")

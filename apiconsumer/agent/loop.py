@@ -18,15 +18,19 @@ from apiconsumer.models.pipeline import PipelineConfig
 console = Console()
 
 _SESSIONS_DIR = pathlib.Path(".claude/sessions")
-_MODEL = "gemini-2.5-flash"
+_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+# Cached in-memory — never written to environment or disk.
+_cached_api_key: Optional[str] = None
 
 
 def _get_client() -> genai.Client:
-    api_key = os.environ.get("Gemini_API_Key")
+    global _cached_api_key
+    api_key = os.environ.get("Gemini_API_Key") or _cached_api_key
     if not api_key:
         import click
         api_key = click.prompt("Enter Gemini API key", hide_input=True)
-        os.environ["Gemini_API_Key"] = api_key
+        _cached_api_key = api_key
     return genai.Client(api_key=api_key)
 
 

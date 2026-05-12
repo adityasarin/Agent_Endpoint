@@ -43,7 +43,7 @@ def probe_sync(
     if auth:
         apply_auth(kwargs, auth)
 
-    with httpx.Client(follow_redirects=True) as client:
+    with httpx.Client(follow_redirects=True, max_redirects=5) as client:
         resp = client.request(method.upper(), url, **kwargs)
         if resp.status_code == 429:
             wait = parse_retry_after(dict(resp.headers))
@@ -67,6 +67,7 @@ class AsyncHTTPClient:
     async def __aenter__(self) -> "AsyncHTTPClient":
         self._client = httpx.AsyncClient(
             follow_redirects=True,
+            max_redirects=5,
             timeout=httpx.Timeout(30.0),
             limits=httpx.Limits(max_connections=5, max_keepalive_connections=5),
         )

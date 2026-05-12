@@ -13,7 +13,7 @@ class CSVWriter:
     """
 
     def __init__(self, file_path: str | Path, fields: list[str] | None = None):
-        self._path = Path(file_path)
+        self._path = Path(file_path).resolve()
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._fields = fields
         self._file = None
@@ -78,4 +78,6 @@ class CSVWriter:
 
 
 def build_window_csv_path(output_dir: str, pipeline_id: str, window_start_unix: int) -> Path:
-    return Path(output_dir) / f"{pipeline_id}_{window_start_unix}.csv"
+    # Strip any path components from pipeline_id (it should be a UUID, but be defensive).
+    safe_id = Path(pipeline_id).name
+    return Path(output_dir).resolve() / f"{safe_id}_{window_start_unix}.csv"

@@ -373,15 +373,21 @@ def _tool_test_auth(url: str, auth_type: str, auth_params: dict) -> dict:
         auth = AuthConfig(auth_type=auth_type, **auth_params)
         kwargs: dict[str, Any] = {"headers": {}}
         apply_auth(kwargs, auth)
-        with httpx.Client(follow_redirects=True) as client:
+        with httpx.Client(follow_redirects=True, max_redirects=5) as client:
             resp = client.get(url, headers=kwargs["headers"], timeout=10)
         if resp.status_code in (200, 201, 204):
             return {"success": True, "status_code": resp.status_code, "message": "Authentication successful"}
         if resp.status_code in (401, 403):
             return {"success": False, "status_code": resp.status_code, "message": "Authentication failed — check credentials"}
         return {"success": True, "status_code": resp.status_code, "message": f"Got {resp.status_code} (may be acceptable)"}
-    except Exception as e:
-        return {"success": False, "error": f"{type(e).__name__}: {e}"}
+    except httpx.HTTPStatusError as e:
+        return {"success": False, "status_code": e.response.status_code, "message": f"HTTP {e.response.status_code}"}
+    except httpx.ConnectError:
+        return {"success": False, "error": "Connection failed — check URL and network"}
+    except httpx.TimeoutException:
+        return {"success": False, "error": "Request timed out"}
+    except Exception:
+        return {"success": False, "error": "Auth test failed — check credentials and URL"}
 
 
 def _tool_ask_user(questions: list[dict]) -> dict:
